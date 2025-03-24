@@ -47,7 +47,7 @@ class PhysicsGameObject(GameObject):
 	def AggressiveAccelerateToLimit(self, limit: float, change: float):
 		# change applies different acceleration if the body is changing from one direction to another until it passes 0
 
-		# if statement blocks nooo
+		#ideally I would like this to be written without nested checks to work more like a math function
 		if self.acceleration[0] > 0:
 			if self.velocity[0] < 0:
 				self.velocity[0] = Utility.minValue(limit, self.velocity[0] + self.acceleration[0] * change)
@@ -70,7 +70,7 @@ class PhysicsGameObject(GameObject):
 			else:
 				self.velocity[1] = Utility.maxValue(-limit, self.velocity[1] - self.acceleration[1])
 	
-	def DragToZero(self, intensity: float, cutoff: float = 0.01):
+	def DragToZero(self, intensity: float):
 		#cutoff means set to 0
 		if self.velocity[0] > 0.0:
 			self.velocity[0] = Utility.maxValue(0.0, self.velocity[0] - intensity)
@@ -94,7 +94,7 @@ class CircleCollider:
 		self.radius = radius
 	
 	def CircleCollide(self, circle: "CircleCollider"):
-		d = math.sqrt((self.pos[0]-circle.pos[0])*(self.pos[0]-circle.pos[0])+(self.pos[1]-circle.pos[1])*(self.pos[1]-circle.pos[1]))
+		d = Utility.distance(self.pos, circle.pos)
 		return d < self.radius+circle.radius
 	
 	def RectCollide(self, rect: "pygame.Rect"):
@@ -121,7 +121,9 @@ class CircleCollider:
 class Paddle(PhysicsGameObject):
 	def __init__(self, gameInstance: "Game"):
 		PhysicsGameObject.__init__(self, GameObject.PADDLE, gameInstance)
-		self.pos = [gameInstance.dim[0]/2, gameInstance.dim[1]*15/16]
+
+
+		self.pos = [gameInstance.dim[0]/2+20, gameInstance.dim[1]*15/16]
 		self.dim = [100, 10]
 		self.maxMoveSpeed = 10
 		self.accelerationSpeed = 1
@@ -152,6 +154,8 @@ class Paddle(PhysicsGameObject):
 	def Render(self):
 		pygame.draw.rect(self.gameInstance.window, (255, 255, 255), [self.pos[0] - self.dim[0]/2, self.pos[1] - self.dim[1]/2, self.dim[0], self.dim[1]])
 
+
+#this could be fully implemented in a challenge mode
 class CurvyPaddle(PhysicsGameObject):
 	def __init__(self, gameInstance: "Game"):
 		PhysicsGameObject.__init__(self, GameObject.PADDLE, gameInstance)
@@ -280,6 +284,7 @@ class Ball(PhysicsGameObject):
 		d = math.sqrt(relativePosition[0]*relativePosition[0]+relativePosition[1]*relativePosition[1])
 		self.velocity = [relativePosition[0]/d*self.moveSpeed, relativePosition[1]/d*self.moveSpeed]
 	
+	#unused
 	def GetReverseVelocityVector(self):
 		d = math.sqrt(self.velocity[0]*self.velocity[0]+self.velocity[1]*self.velocity[1])
 		return [self.velocity[0]/d, self.velocity[1]/d]
@@ -287,7 +292,8 @@ class Ball(PhysicsGameObject):
 	def GetCollisionShape(self) -> CircleCollider:
 		return CircleCollider(self.pos, self.radius)
 
-	# grabbing objects from a general array means that pylance doesn't have hints
+	# grabbing objects from a general array means that pylance doesn't provide hints
+	# I thought about switching collision checking to paddle and bricks, but doing it this way creates fewer checks
 	def CheckCollisions(self):
 		for obj in self.gameInstance.instance:
 			if obj.id == GameObject.PADDLE:
@@ -368,6 +374,7 @@ class Game:
 
 	def Start(self):
 
+		#paddle and ball were added to game isntance for debugging, but they don't need to be here
 		self.paddle = Paddle(self)
 		self.ball = Ball(self)
 
@@ -378,6 +385,8 @@ class Game:
 		self.instance.append(self.paddle)
 		self.instance.append(self.ball)
 
+		#this will eventually be moved to a level instance to allow for loading levels
+
 		topMargin = 10
 		bottomMargin = 350
 		leftMargin = 40
@@ -386,6 +395,7 @@ class Game:
 		verticalSpacing = 10
 		horizontalSpacing = 10
 
+		# this implementation for a level generator is janky and causes weird spacing
 		for y in range(int(Brick.defaultDim[1]/2 + topMargin), int(self.dim[1] - Brick.defaultDim[1]/2 - bottomMargin), int(verticalSpacing + Brick.defaultDim[1])):
 			for x in range(int(Brick.defaultDim[0]/2 + leftMargin), int(self.dim[0] - Brick.defaultDim[0]/2 - rightMargin), int(horizontalSpacing + Brick.defaultDim[0])):
 				self.instance.append(Brick([x, y], self))

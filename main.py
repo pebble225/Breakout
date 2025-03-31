@@ -106,6 +106,19 @@ class CircleCollider:
 			-1 if pos[0] == rect.left else (1 if pos[0] == rect.right else 0),
 			-1 if pos[1] == rect.top else (1 if pos[1] == rect.bottom else 0)
 		]
+	
+	def GetRectCollisionSide2(self, rect: "pygame.Rect"):
+		difference = [self.pos[0]-rect.centerx, self.pos[1]-rect.centery]
+		
+		if rect.width > rect.height:
+			difference[0] *= float(rect.height)/float(rect.width)
+		else:
+			difference[1] *= float(rect.width)/float(rect.height)
+
+		if abs(difference[0]) > abs(difference[1]):
+			return [-1, 0] if difference[0] < 0 else [1, 0]
+		else:
+			return [0, -1] if difference[1] < 0 else [0, 1]
 
 
 class Paddle(PhysicsGameObject):
@@ -119,7 +132,7 @@ class Paddle(PhysicsGameObject):
 		self.accelerationSpeed = 1
 		self.accelerationBrakeSpeed = 2
 
-		self.reflectionIntensity = 30
+		self.reflectionIntensity = 5
 
 	def GetCollisionShape(self):
 		return pygame.Rect(
@@ -150,12 +163,24 @@ class Paddle(PhysicsGameObject):
 
 class Brick(PhysicsGameObject):
 	defaultDim = (60, 20)
+	colors = (
+		(50,10,225),
+		(30,170,60),
+		(225,240,65),
+		(210,55,55)
+	)
 
 	def __init__(self, pos: list[float, float], gameInstance: "Game"):
 		PhysicsGameObject.__init__(self, GameObject.BRICK, gameInstance)
 		self.pos = [pos[0], pos[1]]
 		self.dim = [Brick.defaultDim[0], Brick.defaultDim[1]]
+		self.health = 4
 	
+	def Damage(self):
+		self.health -= 1
+		if self.health == 0:
+			self.deallocate = True
+
 	def GetCollisionShape(self):
 		return pygame.Rect(
 			self.pos[0] - self.dim[0]/2,
@@ -168,7 +193,7 @@ class Brick(PhysicsGameObject):
 		pass
 
 	def Render(self):
-		pygame.draw.rect(self.gameInstance.window, (255, 255, 255), [self.pos[0] - self.dim[0]/2, self.pos[1] - self.dim[1]/2, self.dim[0], self.dim[1]])
+		pygame.draw.rect(self.gameInstance.window, Brick.colors[self.health-1], [self.pos[0] - self.dim[0]/2, self.pos[1] - self.dim[1]/2, self.dim[0], self.dim[1]])
 
 
 class Ball(PhysicsGameObject):
@@ -181,11 +206,6 @@ class Ball(PhysicsGameObject):
 	def SetDirection(self, relativePosition: list[float, float]):
 		d = math.sqrt(relativePosition[0]*relativePosition[0]+relativePosition[1]*relativePosition[1])
 		self.velocity = [relativePosition[0]/d*self.moveSpeed, relativePosition[1]/d*self.moveSpeed]
-	
-	#unused
-	def GetReverseVelocityVector(self):
-		d = math.sqrt(self.velocity[0]*self.velocity[0]+self.velocity[1]*self.velocity[1])
-		return [self.velocity[0]/d, self.velocity[1]/d]
 
 	def GetCollisionShape(self) -> CircleCollider:
 		return CircleCollider(self.pos, self.radius)
@@ -193,23 +213,22 @@ class Ball(PhysicsGameObject):
 	# grabbing objects from a general array means that pylance doesn't provide hints
 	# I thought about switching collision checking to paddle and bricks, but doing it this way creates fewer checks
 	def CheckCollisions(self):
+		circle = self.GetCollisionShape()
 		for obj in self.gameInstance.instance:
 			if obj.id == GameObject.PADDLE:
-				circle = self.GetCollisionShape()
 				rect = obj.GetCollisionShape()
 				if circle.RectCollide(rect) and self.velocity[1] > 0:
 					direction = [self.pos[0] - obj.pos[0], self.pos[1] - (obj.pos[1]+100/obj.reflectionIntensity)]
 					self.SetDirection(direction)
 			elif obj.id == GameObject.BRICK:
-				circle = self.GetCollisionShape()
 				rect = obj.GetCollisionShape()
 				if circle.RectCollide(rect) and obj.deallocate == False:
-					obj.deallocate = True
-					sides = circle.GetRectCollisionSide(rect)
-					if sides[0] != 0:
-						self.velocity[0] = -self.velocity[0]
-					if sides[1] != 0:
-						self.velocity[1] = -self.velocity[1]
+					obj.Damage()
+					sides = circle.GetRectCollisionSide2(rect)
+					self.velocity[0] = -self.velocity[0] if sides[0] != 0 else self.velocity[0]
+					self.velocity[1] = -self.velocity[1] if sides[1] != 0 else self.velocity[1]
+					self.pos[0] = rect.left - self.radius if sides[0] < 0 else (rect.right + self.radius if sides[0] > 0 else self.pos[0])
+					self.pos[1] = rect.top - self.radius if sides[1] < 0 else (rect.bottom + self.radius if sides[1] > 0 else self.pos[1])
 
 	def Update(self):
 		self.pos = [self.pos[0] + self.velocity[0], self.pos[1] + self.velocity[1]]
@@ -248,9 +267,9 @@ class Utility:
 	def distance(pos1: list[float, float], pos2: list[float, float]):
 		return math.sqrt((pos1[0]-pos2[0])*(pos1[0]-pos2[0])+(pos1[1]-pos2[1])*(pos1[1]-pos2[1]))
 
-	def NormalizeVector(vec: list[float, float]):
+	def NormalizeVector(vec: list[float, float], magnitude: int = 1):
 		d = math.sqrt(vec[0]*vec[0] + vec[1]*vec[1])
-		return [vec[0]/d, vec[1]/d]
+		return [vec[0]/d*magnitude, vec[1]/d*magnitude]
 
 	def VectorMultiply(vec1: list[float, float], vec2: list[float, float]):
 		vec3 = [vec1[0]*vec2[0]-vec1[1]+vec2[1], vec1[0]*vec2[1]+vec1[1]*vec2[0]]

@@ -46,29 +46,19 @@ class PhysicsGameObject(GameObject):
 	
 	def AggressiveAccelerateToLimit(self, limit: float, change: float):
 		# change applies different acceleration if the body is changing from one direction to another until it passes 0
-
 		#ideally I would like this to be written without nested checks to work more like a math function
-		if self.acceleration[0] > 0:
-			if self.velocity[0] < 0:
-				self.velocity[0] = Utility.minValue(limit, self.velocity[0] + self.acceleration[0] * change)
-			else:
-				self.velocity[0] = Utility.minValue(limit, self.velocity[0] + self.acceleration[0])
-		elif self.acceleration[0] < 0:
-			if self.velocity[0] > 0:
-				self.velocity[0] = Utility.maxValue(-limit, self.velocity[0] + self.acceleration[0] * change)
-			else:
-				self.velocity[0] = Utility.maxValue(-limit, self.velocity[0] + self.acceleration[0])
 
-		if self.acceleration[1] > 0:
-			if self.velocity[1] < 0:
-				self.velocity[1] = Utility.minValue(limit, self.velocity[1] + self.acceleration[1] * change)
-			else:
-				self.velocity[1] = Utility.minValue(limit, self.velocity[1] + self.acceleration[1])
-		elif self.acceleration[1] < 0:
-			if self.velocity[1] > 0:
-				self.velocity[1] = Utility.maxValue(-limit, self.velocity[1] - self.acceleration[1] * change)
-			else:
-				self.velocity[1] = Utility.maxValue(-limit, self.velocity[1] - self.acceleration[1])
+		for i in range(2):
+			if self.acceleration[i] > 0:
+				if self.velocity[i] < 0:
+					self.velocity[i] = Utility.minValue(limit, self.velocity[i] + self.acceleration[i] * change)
+				else:
+					self.velocity[i] = Utility.minValue(limit, self.velocity[i] + self.acceleration[i])
+			elif self.acceleration[i] < 0:
+				if self.velocity[i] > 0:
+					self.velocity[i] = Utility.maxValue(-limit, self.velocity[i] + self.acceleration[i] * change)
+				else:
+					self.velocity[i] = Utility.maxValue(-limit, self.velocity[i] + self.acceleration[i])
 	
 	def DragToZero(self, intensity: float):
 		#cutoff means set to 0
@@ -151,103 +141,11 @@ class Paddle(PhysicsGameObject):
 			self.acceleration[0] = 0.0
 			self.DragToZero(2.0)
 
+		self.pos[0] = Utility.maxValue(self.dim[0]/2, self.pos[0])
+		self.pos[0] = Utility.minValue(self.gameInstance.dim[0]-self.dim[0]/2, self.pos[0])
+
 	def Render(self):
 		pygame.draw.rect(self.gameInstance.window, (255, 255, 255), [self.pos[0] - self.dim[0]/2, self.pos[1] - self.dim[1]/2, self.dim[0], self.dim[1]])
-
-
-#this could be fully implemented in a challenge mode
-class CurvyPaddle(PhysicsGameObject):
-	def __init__(self, gameInstance: "Game"):
-		PhysicsGameObject.__init__(self, GameObject.PADDLE, gameInstance)
-		self.pos = [gameInstance.dim[0]/2, gameInstance.dim[1]]
-		self.paddleAngle = 35 # value between 45 and 135
-		self.paddleThickness = 16
-		self.paddleDiameter = 200
-		self.maxMoveSpeed = 10
-		self.accelerationSpeed = 1
-		self.accelerationBrakeSpeed = 2
-	
-	def GetVectorToBall(self, ball: "Ball"):
-		pos = [ball.pos[0], ball.pos[1]]
-		pos = [pos[0] - self.pos[0], pos[1] - self.pos[1]]
-		d = math.sqrt(pos[0]*pos[0] + pos[1]*pos[1])
-		return [pos[0] / d, pos[1] / d]
-	
-	def GetRotatedVectorToBall(self, ball: "Ball"):
-		pos = [ball.pos[0], ball.pos[1]]
-		pos = [pos[0] - self.pos[0], pos[1] - self.pos[1]]
-		d = math.sqrt(pos[0]*pos[0] + pos[1]*pos[1])
-		return [-pos[1] / d, pos[0] / d]
-	
-	def GetCollisionShape(self) -> CircleCollider:
-		return CircleCollider(self.pos, self.paddleDiameter/2)
-	
-	def HasValidCollisionWithBall(self, ball: "Ball"):
-		paddleCollider = self.GetCollisionShape()
-		ballCollider = ball.GetCollisionShape()
-		vec = self.GetVectorToBall(ball)
-		angle = math.atan2(-vec[1], vec[0])*180.0/3.14159265 - 90.0
-		distance = Utility.distance(self.pos, ball.pos)
-
-		if ballCollider.CircleCollide(paddleCollider) and abs(angle) < self.paddleAngle and distance > self.paddleDiameter/2-self.paddleThickness and ball.velocity[1] > 0:
-			return True
-		
-		return False
-
-	def Update(self):
-		self.PushVelocity()
-		self.AggressiveAccelerateToLimit(self.maxMoveSpeed, self.accelerationBrakeSpeed)
-		
-		if self.gameInstance.controller.LEFT:
-			self.acceleration[0] = -self.accelerationSpeed
-		elif self.gameInstance.controller.RIGHT:
-			self.acceleration[0] = self.accelerationSpeed
-		else:
-			self.acceleration[0] = 0.0
-			self.DragToZero(2.0)
-	
-	def Render(self):
-		paddleVector = [math.sin(Utility.angleToRandian(self.paddleAngle)), math.cos(Utility.angleToRandian(self.paddleAngle))]
-
-		triangleSize = math.sqrt(self.paddleDiameter*self.paddleDiameter/2)+2
-
-		leftTriangleTop = [-paddleVector[0]*(triangleSize)+self.pos[0], -paddleVector[1]*(triangleSize)+self.pos[1]]
-		leftTriangleBottom = [-paddleVector[1]*(triangleSize)+self.pos[0], paddleVector[0]*(triangleSize)+self.pos[1]]
-
-		rightTriangleTop = [paddleVector[0]*(triangleSize)+self.pos[0], -paddleVector[1]*(triangleSize)+self.pos[1]]
-		rightTriangleBottom = [paddleVector[1]*(triangleSize)+self.pos[0], paddleVector[0]*(triangleSize)+self.pos[1]]
-
-		leftEdge = [-paddleVector[0]*(self.paddleDiameter/2-self.paddleThickness/2) + self.pos[0], -paddleVector[1]*(self.paddleDiameter/2-self.paddleThickness/2) + self.pos[1]]
-		rightEdge = [paddleVector[0]*(self.paddleDiameter/2-self.paddleThickness/2) + self.pos[0], -paddleVector[1]*(self.paddleDiameter/2-self.paddleThickness/2) + self.pos[1]]
-
-		hideColor = self.gameInstance.backgroundColor
-
-		pygame.draw.ellipse(
-			self.gameInstance.window,
-			(255, 255, 255),
-			[
-				self.pos[0]-self.paddleDiameter/2,
-				self.pos[1]-self.paddleDiameter/2,
-				self.paddleDiameter,
-				self.paddleDiameter
-			]
-		)
-		pygame.draw.ellipse(
-			self.gameInstance.window,
-			hideColor,
-			[
-				self.pos[0]-self.paddleDiameter/2+self.paddleThickness,
-				self.pos[1]-self.paddleDiameter/2+self.paddleThickness,
-				(self.paddleDiameter-self.paddleThickness*2),
-				(self.paddleDiameter-self.paddleThickness*2)
-			]
-		)
-		if self.paddleAngle < 90:
-			pygame.draw.rect(self.gameInstance.window, hideColor, [self.pos[0]-self.paddleDiameter/2, self.pos[1], self.paddleDiameter, self.paddleDiameter/2])
-		pygame.draw.polygon(self.gameInstance.window, hideColor, [leftTriangleTop, self.pos, leftTriangleBottom])
-		pygame.draw.polygon(self.gameInstance.window, hideColor, [rightTriangleBottom, self.pos, rightTriangleTop])
-		pygame.draw.circle(self.gameInstance.window, (255, 255, 255), leftEdge, self.paddleThickness/2)
-		pygame.draw.circle(self.gameInstance.window, (255, 255, 255), rightEdge, self.paddleThickness/2)
 
 
 class Brick(PhysicsGameObject):
@@ -277,7 +175,7 @@ class Ball(PhysicsGameObject):
 	def __init__(self, gameInstance: "Game"):
 		PhysicsGameObject.__init__(self, GameObject.BALL, gameInstance)
 		self.velocity = [0.0, 0.0]
-		self.moveSpeed = 3
+		self.moveSpeed = 5
 		self.radius = 6
 	
 	def SetDirection(self, relativePosition: list[float, float]):

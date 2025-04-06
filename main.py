@@ -202,10 +202,15 @@ class Ball(PhysicsGameObject):
 		self.velocity = [0.0, 0.0]
 		self.moveSpeed = 5
 		self.radius = 6
+		self.startDelay = self.gameInstance.gameTime + 60
 	
 	def SetDirection(self, relativePosition: list[float, float]):
 		d = math.sqrt(relativePosition[0]*relativePosition[0]+relativePosition[1]*relativePosition[1])
 		self.velocity = [relativePosition[0]/d*self.moveSpeed, relativePosition[1]/d*self.moveSpeed]
+	
+
+	def ResetStartTimer(self):
+		self.startDelay = self.gameInstance.gameTime + 60
 
 	def GetCollisionShape(self) -> CircleCollider:
 		return CircleCollider(self.pos, self.radius)
@@ -231,6 +236,8 @@ class Ball(PhysicsGameObject):
 					self.pos[1] = rect.top - self.radius if sides[1] < 0 else (rect.bottom + self.radius if sides[1] > 0 else self.pos[1])
 
 	def Update(self):
+		if self.startDelay > self.gameInstance.gameTime:
+			return
 		self.pos = [self.pos[0] + self.velocity[0], self.pos[1] + self.velocity[1]]
 
 		if self.velocity[0] > 0 and self.pos[0]+self.radius > self.gameInstance.dim[0]:
@@ -275,11 +282,55 @@ class Utility:
 		vec3 = [vec1[0]*vec2[0]-vec1[1]+vec2[1], vec1[0]*vec2[1]+vec1[1]*vec2[0]]
 		return Utility.NormalizeVector(vec3)
 
+
+class LevelGenerator:
+	def ResetLevel(gameInstance: "Game"):
+		gameInstance.instance = []
+		gameInstance.ballLives = 3
+
+		paddle = Paddle(gameInstance)
+
+		ball = Ball(gameInstance)
+		ball.pos = [gameInstance.dim[0]/2, 500]
+		ball.SetDirection([0.0, 1.0])
+
+		gameInstance.instance.append(ball)
+		gameInstance.instance.append(paddle)
+
+		topMargin = 30
+		bottomMargin = 350
+		leftMargin = 40
+		rightMargin = 40
+
+		verticalSpacing = 10
+		horizontalSpacing = 10
+		# this implementation for a level generator is janky and causes weird spacing
+		for y in range(int(Brick.defaultDim[1]/2 + topMargin), int(gameInstance.dim[1] - Brick.defaultDim[1]/2 - bottomMargin), int(verticalSpacing + Brick.defaultDim[1])):
+			for x in range(int(Brick.defaultDim[0]/2 + leftMargin), int(gameInstance.dim[0] - Brick.defaultDim[0]/2 - rightMargin), int(horizontalSpacing + Brick.defaultDim[0])):
+				gameInstance.instance.append(Brick([x, y], gameInstance))
+
+
+class GameUI:
+	def RenderLives(gameInstance: "Game"):
+		leftMargin = 10
+		topMargin = 10
+		lifeOffset = 16
+
+		outerLayer = 8
+		innerLayer = 4
+
+		for x in range(0, gameInstance.ballLives, 1):
+			pygame.draw.circle(gameInstance.window, (0, 0, 0), (leftMargin + lifeOffset*x, topMargin), outerLayer)
+			pygame.draw.circle(gameInstance.window, (255, 255, 255), (leftMargin + lifeOffset*x, topMargin), innerLayer)
+
+
 class Game:
 	def __init__(self):
 		self.window = None
 		self.running = True
 		self.dim = (800, 800)
+
+		self.ballLives = 3
 
 		self.controller = Controller()
 
@@ -291,31 +342,7 @@ class Game:
 
 	def Start(self):
 
-		#paddle and ball were added to game isntance for debugging, but they don't need to be here
-		self.paddle = Paddle(self)
-		self.ball = Ball(self)
-
-		self.ball = Ball(self)
-		self.ball.pos = [self.dim[0]/2, 500]
-		self.ball.SetDirection([0.0, 1.0])
-
-		self.instance.append(self.paddle)
-		self.instance.append(self.ball)
-
-		#this will eventually be moved to a level instance to allow for loading levels
-
-		topMargin = 10
-		bottomMargin = 350
-		leftMargin = 40
-		rightMargin = 40
-
-		verticalSpacing = 10
-		horizontalSpacing = 10
-
-		# this implementation for a level generator is janky and causes weird spacing
-		for y in range(int(Brick.defaultDim[1]/2 + topMargin), int(self.dim[1] - Brick.defaultDim[1]/2 - bottomMargin), int(verticalSpacing + Brick.defaultDim[1])):
-			for x in range(int(Brick.defaultDim[0]/2 + leftMargin), int(self.dim[0] - Brick.defaultDim[0]/2 - rightMargin), int(horizontalSpacing + Brick.defaultDim[0])):
-				self.instance.append(Brick([x, y], self))
+		LevelGenerator.ResetLevel(self)
 	
 	def Input(self):
 		for e in pygame.event.get():
@@ -340,12 +367,29 @@ class Game:
 			obj = self.instance[i]
 			if obj.deallocate:
 				self.instance.remove(obj)
+		
+		# life counter only supports 1 ball in game instance
+		# once again pylance doesn't recognize the ball as a Ball instance
+
+		arr = [i for i in self.instance if isinstance(i, Ball)]
+
+		if len(arr) > 0:
+			ball = arr[0]
+			if ball.pos[1] > self.dim[1]:
+				self.ballLives -= 1
+				ball.pos = [self.dim[0]/2, 500]
+				ball.SetDirection([0.0, 1.0])
+				ball.ResetStartTimer()
+				if self.ballLives < 0:
+					LevelGenerator.ResetLevel(self)
 
 	def Render(self):
 		self.window.fill(self.backgroundColor)
 
 		for obj in self.instance:
 			obj.Render()
+		
+		GameUI.RenderLives(self)
 
 		pygame.display.flip()
 

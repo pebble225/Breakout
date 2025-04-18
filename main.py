@@ -245,7 +245,7 @@ class Ball(PhysicsGameObject):
 		elif self.velocity[0] < 0 and self.pos[0] - self.radius < 0:
 			self.velocity[0] = -self.velocity[0]
 
-		elif self.velocity[1] < 0 and self.pos[1] - self.radius < 0:
+		if self.velocity[1] < 0 and self.pos[1] - self.radius < 0:
 			self.velocity[1] = -self.velocity[1]
 
 		self.CheckCollisions()

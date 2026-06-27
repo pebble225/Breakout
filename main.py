@@ -48,6 +48,7 @@ class PhysicsGameObject(GameObject):
 		# change applies different acceleration if the body is changing from one direction to another until it passes 0
 		#ideally I would like this to be written without nested checks to work more like a math function
 
+		# these formulas simulate friction, so this process can be simplified down to a vector that opposes the velocity of the paddle
 		for i in range(2):
 			if self.acceleration[i] > 0:
 				if self.velocity[i] < 0:
